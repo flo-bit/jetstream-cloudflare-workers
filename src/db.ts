@@ -74,22 +74,26 @@ export async function getRecords(
   db: D1Database,
   collection: string,
   limit: number,
-  cursor?: number
+  cursor?: number,
+  did?: string
 ): Promise<{ records: RecordRow[]; cursor?: string }> {
   const clampedLimit = Math.min(Math.max(1, limit), 100);
 
-  let query: string;
-  let bindings: (string | number)[];
+  const conditions = ["collection = ?"];
+  const bindings: (string | number)[] = [collection];
 
-  if (cursor) {
-    query =
-      "SELECT uri, did, collection, rkey, cid, record, time_us, indexed_at FROM records WHERE collection = ? AND time_us < ? ORDER BY time_us DESC LIMIT ?";
-    bindings = [collection, cursor, clampedLimit];
-  } else {
-    query =
-      "SELECT uri, did, collection, rkey, cid, record, time_us, indexed_at FROM records WHERE collection = ? ORDER BY time_us DESC LIMIT ?";
-    bindings = [collection, clampedLimit];
+  if (did) {
+    conditions.push("did = ?");
+    bindings.push(did);
   }
+  if (cursor) {
+    conditions.push("time_us < ?");
+    bindings.push(cursor);
+  }
+
+  const where = conditions.join(" AND ");
+  const query = `SELECT uri, did, collection, rkey, cid, record, time_us, indexed_at FROM records WHERE ${where} ORDER BY time_us DESC LIMIT ?`;
+  bindings.push(clampedLimit);
 
   const result = await db
     .prepare(query)
@@ -168,6 +172,13 @@ CREATE TABLE IF NOT EXISTS records (
 );
 CREATE INDEX IF NOT EXISTS idx_records_collection_time ON records(collection, time_us DESC);
 CREATE INDEX IF NOT EXISTS idx_records_collection_did ON records(collection, did);
+CREATE TABLE IF NOT EXISTS backfills (
+  did TEXT NOT NULL,
+  collection TEXT NOT NULL,
+  completed INTEGER NOT NULL DEFAULT 0,
+  pds_cursor TEXT,
+  PRIMARY KEY (did, collection)
+);
 CREATE TABLE IF NOT EXISTS cursor (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   time_us INTEGER NOT NULL

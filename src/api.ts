@@ -1,3 +1,4 @@
+import { backfillUser } from "./backfill";
 import { getRecords, getUsersByCollection, RecordRow } from "./db";
 
 interface Env {
@@ -70,6 +71,7 @@ async function handleGetRecords(
 ): Promise<Response> {
   const limitParam = url.searchParams.get("limit");
   const cursorParam = url.searchParams.get("cursor");
+  const did = url.searchParams.get("did") || undefined;
 
   const limit = limitParam ? parseInt(limitParam, 10) : 50;
   if (isNaN(limit) || limit < 1) {
@@ -81,7 +83,12 @@ async function handleGetRecords(
     return json({ error: "Invalid cursor parameter" }, 400);
   }
 
-  const result = await getRecords(db, collection, limit, cursor);
+  if (did) {
+    const deadline = Date.now() + 10_000;
+    await backfillUser(db, did, collection, deadline);
+  }
+
+  const result = await getRecords(db, collection, limit, cursor, did);
 
   const records = result.records.map(formatRecord);
 
