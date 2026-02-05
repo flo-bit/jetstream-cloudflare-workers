@@ -1,19 +1,19 @@
 import { JetstreamSubscription } from "@atcute/jetstream";
-import { EventRow } from "./db";
+import { IngestEvent } from "./db";
 
 /**
  * Connect to Jetstream via @atcute/jetstream and collect commit events.
- * Returns the collected event rows and the last cursor seen.
+ * Returns the collected events and the last cursor seen.
  */
 export async function ingestEvents(
   jetstreamUrl: string,
   wantedCollections: string[],
   cursor: number | null,
   safetyTimeoutMs: number = 25_000
-): Promise<{ events: EventRow[]; lastCursor: number | null }> {
+): Promise<{ events: IngestEvent[]; lastCursor: number | null }> {
   const startTimeUs = Date.now() * 1000;
   const deadline = Date.now() + safetyTimeoutMs;
-  const collected: EventRow[] = [];
+  const collected: IngestEvent[] = [];
 
   const subscription = new JetstreamSubscription({
     url: jetstreamUrl,
@@ -26,12 +26,14 @@ export async function ingestEvents(
     if (event.kind === "commit") {
       const { commit } = event;
       const now = Date.now();
+      const uri = `at://${event.did}/${commit.collection}/${commit.rkey}`;
 
       collected.push({
+        uri,
         did: event.did,
         time_us: event.time_us,
         collection: commit.collection,
-        operation: commit.operation,
+        operation: commit.operation as "create" | "update" | "delete",
         rkey: commit.rkey,
         cid: commit.operation === "delete" ? null : commit.cid,
         record:

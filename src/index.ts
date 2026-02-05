@@ -1,6 +1,6 @@
 import { handleRequest } from "./api";
 import { WANTED_COLLECTIONS } from "./config";
-import { getLastCursor, saveCursor, insertEvents } from "./db";
+import { getLastCursor, saveCursor, applyEvents } from "./db";
 import { ingestEvents } from "./ingest";
 
 export interface Env {
@@ -42,7 +42,7 @@ async function runIngestion(env: Env): Promise<void> {
   // Batch-insert events into D1
   for (let i = 0; i < events.length; i += BATCH_SIZE) {
     const batch = events.slice(i, i + BATCH_SIZE);
-    await insertEvents(env.DB, batch);
+    await applyEvents(env.DB, batch);
   }
 
   // Save the new cursor position

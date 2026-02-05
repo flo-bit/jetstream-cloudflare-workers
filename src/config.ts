@@ -1,3 +1,4 @@
 export const WANTED_COLLECTIONS = [
-  "app.bsky.feed.like",
+  "app.blento.card",
+  "app.blento.page"
 ];
