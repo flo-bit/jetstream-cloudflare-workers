@@ -27,7 +27,7 @@ export async function backfillUser(
 
   if (status?.completed) return 0;
 
-  // Create row if first attempt
+  // Create row if first attempt, then re-read to handle races
   if (!status) {
     await db
       .prepare(
@@ -35,6 +35,13 @@ export async function backfillUser(
       )
       .bind(did, collection)
       .run();
+    const current = await db
+      .prepare(
+        "SELECT completed, pds_cursor FROM backfills WHERE did = ? AND collection = ?"
+      )
+      .bind(did, collection)
+      .first<{ completed: number; pds_cursor: string | null }>();
+    if (current?.completed) return 0;
   }
 
   let currentCursor: string | undefined = status?.pds_cursor ?? undefined;

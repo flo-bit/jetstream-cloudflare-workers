@@ -1,5 +1,3 @@
-export const WANTED_COLLECTIONS = [
-  "app.blento.card",
-  "app.blento.page",
-  "app.bsky.feed.like"
-];
+export function getCollections(env: { COLLECTIONS: string }): string[] {
+  return env.COLLECTIONS.split(",").map((s) => s.trim()).filter(Boolean);
+}

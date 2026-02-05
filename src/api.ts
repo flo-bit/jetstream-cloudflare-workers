@@ -1,109 +1,87 @@
 import { backfillUser } from "./backfill";
-import { WANTED_COLLECTIONS } from "./config";
+import { getCollections } from "./config";
 import { getRecords, getUsersByCollection, RecordRow } from "./db";
 
 interface Env {
   DB: D1Database;
+  COLLECTIONS: string;
 }
+
+type Handler = (
+  params: URLSearchParams,
+  db: D1Database,
+  match: RegExpMatchArray
+) => Promise<Response>;
+
+const routes: { pattern: RegExp; handler: Handler }[] = [
+  { pattern: /^\/records\/(.+)$/, handler: handleGetRecords },
+  { pattern: /^\/users\/(.+)$/, handler: handleGetUsers },
+  { pattern: /^\/backfill\/([^/]+)\/(.+)$/, handler: handleGetBackfillStatus },
+];
 
 export async function handleRequest(
   request: Request,
   env: Env
 ): Promise<Response> {
+  if (request.method !== "GET") {
+    return json({ error: "Method not allowed" }, 405);
+  }
+
   const url = new URL(request.url);
   const path = url.pathname;
 
-  // GET /users/:collection
-  const usersMatch = path.match(/^\/users\/(.+)$/);
-  if (usersMatch) {
-    if (request.method !== "GET") {
-      return json({ error: "Method not allowed" }, 405);
-    }
-    const collection = usersMatch[1];
-    if (!WANTED_COLLECTIONS.includes(collection)) {
-      return json({ error: "Collection not tracked" }, 404);
-    }
-    return handleGetUsers(url, env.DB, collection);
-  }
-
-  // GET /records/:collection
-  const recordsMatch = path.match(/^\/records\/(.+)$/);
-  if (recordsMatch) {
-    if (request.method !== "GET") {
-      return json({ error: "Method not allowed" }, 405);
-    }
-    const collection = recordsMatch[1];
-    if (!WANTED_COLLECTIONS.includes(collection)) {
-      return json({ error: "Collection not tracked" }, 404);
-    }
-    return handleGetRecords(url, env.DB, collection);
-  }
-
-  // GET /backfill/:collection/:did
-  const backfillMatch = path.match(/^\/backfill\/([^/]+)\/(.+)$/);
-  if (backfillMatch) {
-    if (request.method !== "GET") {
-      return json({ error: "Method not allowed" }, 405);
-    }
-    const [, collection, did] = backfillMatch;
-    if (!WANTED_COLLECTIONS.includes(collection)) {
-      return json({ error: "Collection not tracked" }, 404);
-    }
-    return handleGetBackfillStatus(env.DB, did, collection);
-  }
-
-  // Health check
   if (path === "/" || path === "/health") {
     return json({ status: "ok" });
+  }
+
+  const collections = getCollections(env);
+
+  for (const route of routes) {
+    const match = path.match(route.pattern);
+    if (!match) continue;
+
+    const collection = match[1];
+    if (!collections.includes(collection)) {
+      return json({ error: "Collection not tracked" }, 404);
+    }
+
+    return route.handler(url.searchParams, env.DB, match);
   }
 
   return json({ error: "Not found" }, 404);
 }
 
-async function handleGetUsers(
-  url: URL,
-  db: D1Database,
-  collection: string
-): Promise<Response> {
-  const limitParam = url.searchParams.get("limit");
-  const cursorParam = url.searchParams.get("cursor");
+function parsePagination(params: URLSearchParams): {
+  limit: number;
+  cursor: number | undefined;
+  error?: string;
+} {
+  const limitParam = params.get("limit");
+  const cursorParam = params.get("cursor");
 
   const limit = limitParam ? parseInt(limitParam, 10) : 50;
   if (isNaN(limit) || limit < 1) {
-    return json({ error: "Invalid limit parameter" }, 400);
+    return { limit: 0, cursor: undefined, error: "Invalid limit parameter" };
   }
 
   const cursor = cursorParam ? parseInt(cursorParam, 10) : undefined;
   if (cursorParam && (isNaN(cursor!) || cursor! < 0)) {
-    return json({ error: "Invalid cursor parameter" }, 400);
+    return { limit: 0, cursor: undefined, error: "Invalid cursor parameter" };
   }
 
-  const result = await getUsersByCollection(db, collection, limit, cursor);
-
-  return json({
-    users: result.users,
-    cursor: result.cursor,
-  });
+  return { limit, cursor };
 }
 
 async function handleGetRecords(
-  url: URL,
+  params: URLSearchParams,
   db: D1Database,
-  collection: string
+  match: RegExpMatchArray
 ): Promise<Response> {
-  const limitParam = url.searchParams.get("limit");
-  const cursorParam = url.searchParams.get("cursor");
-  const did = url.searchParams.get("did") || undefined;
+  const { limit, cursor, error } = parsePagination(params);
+  if (error) return json({ error }, 400);
 
-  const limit = limitParam ? parseInt(limitParam, 10) : 50;
-  if (isNaN(limit) || limit < 1) {
-    return json({ error: "Invalid limit parameter" }, 400);
-  }
-
-  const cursor = cursorParam ? parseInt(cursorParam, 10) : undefined;
-  if (cursorParam && (isNaN(cursor!) || cursor! < 1)) {
-    return json({ error: "Invalid cursor parameter" }, 400);
-  }
+  const collection = match[1];
+  const did = params.get("did") || undefined;
 
   if (did) {
     const deadline = Date.now() + 10_000;
@@ -112,45 +90,66 @@ async function handleGetRecords(
 
   const result = await getRecords(db, collection, limit, cursor, did);
 
-  const records = result.records.map(formatRecord);
+  return json({
+    records: result.records.map(formatRecord),
+    cursor: result.cursor,
+  });
+}
+
+async function handleGetUsers(
+  params: URLSearchParams,
+  db: D1Database,
+  match: RegExpMatchArray
+): Promise<Response> {
+  const { limit, cursor, error } = parsePagination(params);
+  if (error) return json({ error }, 400);
+
+  const result = await getUsersByCollection(db, match[1], limit, cursor);
 
   return json({
-    records,
+    users: result.users,
     cursor: result.cursor,
   });
 }
 
 async function handleGetBackfillStatus(
+  _params: URLSearchParams,
   db: D1Database,
-  did: string,
-  collection: string
+  match: RegExpMatchArray
 ): Promise<Response> {
+  const [, collection, did] = match;
+
   const row = await db
     .prepare(
-      "SELECT completed, pds_cursor FROM backfills WHERE did = ? AND collection = ?"
+      "SELECT completed FROM backfills WHERE did = ? AND collection = ?"
     )
     .bind(did, collection)
-    .first<{ completed: number; pds_cursor: string | null }>();
-
-  if (!row) {
-    return json({ did, collection, status: "unknown" });
-  }
+    .first<{ completed: number }>();
 
   return json({
     did,
     collection,
-    status: row.completed ? "complete" : "in_progress",
+    status: !row ? "unknown" : row.completed ? "complete" : "in_progress",
   });
 }
 
 function formatRecord(row: RecordRow) {
+  let record = null;
+  if (row.record) {
+    try {
+      record = JSON.parse(row.record);
+    } catch {
+      record = row.record;
+    }
+  }
+
   return {
     uri: row.uri,
     did: row.did,
     collection: row.collection,
     rkey: row.rkey,
     cid: row.cid,
-    record: row.record ? JSON.parse(row.record) : null,
+    record,
     time_us: row.time_us,
     indexed_at: row.indexed_at,
   };

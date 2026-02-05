@@ -1,12 +1,13 @@
 import { handleRequest } from "./api";
 import { backfillUser } from "./backfill";
-import { WANTED_COLLECTIONS } from "./config";
-import { getLastCursor, saveCursor, applyEvents } from "./db";
+import { getCollections } from "./config";
+import { getLastCursor, saveCursor, applyEvents, initDb } from "./db";
 import { ingestEvents } from "./ingest";
 
 export interface Env {
   DB: D1Database;
   JETSTREAM_URL: string;
+  COLLECTIONS: string;
 }
 
 const BATCH_SIZE = 50;
@@ -27,15 +28,20 @@ export default {
 
 async function runIngestion(env: Env): Promise<void> {
   const globalDeadline = Date.now() + 28_000;
+  const collections = getCollections(env);
+
+  // Auto-init schema (idempotent)
+  await initDb(env.DB);
+
   const cursor = await getLastCursor(env.DB);
 
   console.log(
-    `Starting ingestion. Cursor: ${cursor ?? "none"}, Collections: ${WANTED_COLLECTIONS.join(", ")}`
+    `Starting ingestion. Cursor: ${cursor ?? "none"}, Collections: ${collections.join(", ")}`
   );
 
   const { events, lastCursor } = await ingestEvents(
     env.JETSTREAM_URL,
-    WANTED_COLLECTIONS,
+    collections,
     cursor,
     20_000
   );

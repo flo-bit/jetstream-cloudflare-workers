@@ -4,7 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev --test-scheduled",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "setup": "wrangler d1 create jetstream-events && echo 'Add the database_id to wrangler.toml, then run: pnpm db:init'",
+    "db:init": "wrangler d1 execute jetstream-events --file=schema.sql --local && wrangler d1 execute jetstream-events --file=schema.sql",
+    "db:reset": "wrangler d1 execute jetstream-events --command='DROP TABLE IF EXISTS records; DROP TABLE IF EXISTS backfills; DROP TABLE IF EXISTS cursor' --local && wrangler d1 execute jetstream-events --file=schema.sql --local",
+    "ingest": "curl -s http://localhost:8787/__scheduled?cron=*/1+*+*+*+*"
   },
   "dependencies": {
     "@atcute/atproto": "^3.1.10",

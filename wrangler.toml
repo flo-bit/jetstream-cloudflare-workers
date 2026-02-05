@@ -4,6 +4,7 @@ compatibility_date = "2025-01-29"
 
 [vars]
 JETSTREAM_URL = "wss://jetstream2.us-east.bsky.network"
+COLLECTIONS = "app.blento.card,app.blento.page"
 
 [[d1_databases]]
 binding = "DB"
