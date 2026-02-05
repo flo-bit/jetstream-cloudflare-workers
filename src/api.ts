@@ -1,4 +1,5 @@
 import { backfillUser } from "./backfill";
+import { WANTED_COLLECTIONS } from "./config";
 import { getRecords, getUsersByCollection, RecordRow } from "./db";
 
 interface Env {
@@ -18,7 +19,11 @@ export async function handleRequest(
     if (request.method !== "GET") {
       return json({ error: "Method not allowed" }, 405);
     }
-    return handleGetUsers(url, env.DB, usersMatch[1]);
+    const collection = usersMatch[1];
+    if (!WANTED_COLLECTIONS.includes(collection)) {
+      return json({ error: "Collection not tracked" }, 404);
+    }
+    return handleGetUsers(url, env.DB, collection);
   }
 
   // GET /records/:collection
@@ -27,7 +32,24 @@ export async function handleRequest(
     if (request.method !== "GET") {
       return json({ error: "Method not allowed" }, 405);
     }
-    return handleGetRecords(url, env.DB, recordsMatch[1]);
+    const collection = recordsMatch[1];
+    if (!WANTED_COLLECTIONS.includes(collection)) {
+      return json({ error: "Collection not tracked" }, 404);
+    }
+    return handleGetRecords(url, env.DB, collection);
+  }
+
+  // GET /backfill/:collection/:did
+  const backfillMatch = path.match(/^\/backfill\/([^/]+)\/(.+)$/);
+  if (backfillMatch) {
+    if (request.method !== "GET") {
+      return json({ error: "Method not allowed" }, 405);
+    }
+    const [, collection, did] = backfillMatch;
+    if (!WANTED_COLLECTIONS.includes(collection)) {
+      return json({ error: "Collection not tracked" }, 404);
+    }
+    return handleGetBackfillStatus(env.DB, did, collection);
   }
 
   // Health check
@@ -95,6 +117,29 @@ async function handleGetRecords(
   return json({
     records,
     cursor: result.cursor,
+  });
+}
+
+async function handleGetBackfillStatus(
+  db: D1Database,
+  did: string,
+  collection: string
+): Promise<Response> {
+  const row = await db
+    .prepare(
+      "SELECT completed, pds_cursor FROM backfills WHERE did = ? AND collection = ?"
+    )
+    .bind(did, collection)
+    .first<{ completed: number; pds_cursor: string | null }>();
+
+  if (!row) {
+    return json({ did, collection, status: "unknown" });
+  }
+
+  return json({
+    did,
+    collection,
+    status: row.completed ? "complete" : "in_progress",
   });
 }
 

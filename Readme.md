@@ -38,6 +38,7 @@ All endpoints return JSON with `?limit=` (default 50, max 100) and `?cursor=` pa
 |---|---|
 | `GET /records/:collection` | Records sorted by time (newest first). Optional `?did=` filter (triggers backfill if needed). |
 | `GET /users/:collection` | DIDs ranked by record count. |
+| `GET /backfill/:collection/:did` | Backfill status: `unknown`, `in_progress`, or `complete`. |
 | `GET /health` | Health check. |
 
 ## Admin
