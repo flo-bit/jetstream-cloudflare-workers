@@ -151,7 +151,6 @@ function formatRecord(row: RecordRow) {
     cid: row.cid,
     record,
     time_us: row.time_us,
-    indexed_at: row.indexed_at,
   };
 }
 

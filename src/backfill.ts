@@ -94,7 +94,7 @@ export async function backfillUser(
       cid: r.cid,
       record: JSON.stringify(r.value),
       time_us: now * 1000,
-      indexed_at: now,
+      indexed_at: now * 1000,
     }));
 
     for (let i = 0; i < events.length; i += BATCH_SIZE) {

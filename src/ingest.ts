@@ -40,7 +40,7 @@ export async function ingestEvents(
           commit.operation === "delete"
             ? null
             : JSON.stringify(commit.record),
-        indexed_at: now,
+        indexed_at: now * 1000,
       });
     }
 
