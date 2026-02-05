@@ -1,0 +1,14 @@
+name = "jetstream-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-29"
+
+[vars]
+JETSTREAM_URL = "wss://jetstream2.us-east.bsky.network"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "jetstream-events"
+database_id = "0ac319ec-7e00-4727-b14f-8d1e8b0bed19"
+
+[triggers]
+crons = ["*/1 * * * *"]
