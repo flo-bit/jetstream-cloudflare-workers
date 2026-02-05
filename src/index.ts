@@ -6,7 +6,6 @@ import { ingestEvents } from "./ingest";
 
 export interface Env {
   DB: D1Database;
-  JETSTREAM_URL: string;
   COLLECTIONS: string;
 }
 
@@ -40,7 +39,6 @@ async function runIngestion(env: Env): Promise<void> {
   );
 
   const { events, lastCursor } = await ingestEvents(
-    env.JETSTREAM_URL,
     collections,
     cursor,
     20_000

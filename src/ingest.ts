@@ -5,8 +5,14 @@ import { IngestEvent } from "./db";
  * Connect to Jetstream via @atcute/jetstream and collect commit events.
  * Returns the collected events and the last cursor seen.
  */
+const JETSTREAM_URLS = [
+  "wss://jetstream1.us-east.bsky.network",
+  "wss://jetstream2.us-east.bsky.network",
+  "wss://jetstream1.us-west.bsky.network",
+  "wss://jetstream2.us-west.bsky.network",
+];
+
 export async function ingestEvents(
-  jetstreamUrl: string,
   wantedCollections: string[],
   cursor: number | null,
   safetyTimeoutMs: number = 25_000
@@ -16,9 +22,18 @@ export async function ingestEvents(
   const collected: IngestEvent[] = [];
 
   const subscription = new JetstreamSubscription({
-    url: jetstreamUrl,
+    url: JETSTREAM_URLS,
     wantedCollections,
     ...(cursor !== null ? { cursor } : {}),
+    onConnectionOpen() {
+      console.log("Connected to Jetstream");
+    },
+    onConnectionClose(event) {
+      console.log(`Disconnected from Jetstream: ${event.code} ${event.reason}`);
+    },
+    onConnectionError(event) {
+      console.error("Jetstream error:", event.error);
+    },
   });
 
   for await (const event of subscription) {

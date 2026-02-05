@@ -29,19 +29,42 @@ pnpm dev
 pnpm ingest  # trigger ingestion
 ```
 
+## Deploy
+
+Requires a free [Cloudflare account](https://dash.cloudflare.com/sign-up) and [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) (included as a dev dependency).
+
+```sh
+npx wrangler login              # authenticate with Cloudflare (one-time)
+pnpm setup                      # create the D1 database
+```
+
+Copy the `database_id` from the output into `wrangler.toml` under `[[d1_databases]]`, set your desired collections in the `COLLECTIONS` var, then:
+
+```sh
+pnpm deploy
+```
+
+The worker will start ingesting on its cron schedule (every minute by default). Monitor logs with:
+
+```sh
+npx wrangler tail
+```
+
 ## Backfill
 
 When a new DID appears in the Jetstream events, the worker fetches all their existing records for that collection from their PDS. Backfill is resumable — progress is saved per-page, so large repos are spread across multiple cron runs. Querying a user's records via the API also triggers backfill on demand.
 
 ## API
 
-All endpoints return JSON with `?limit=` (default 50, max 100) and `?cursor=` pagination.
+All endpoints return JSON. Only tracked collections are served (others return 404). Paginated endpoints support `?limit=` (default 50, max 100) and `?cursor=`.
 
 | Endpoint | Description |
 |---|---|
 | `GET /records/:collection` | Records sorted by time (newest first). Optional `?did=` filter (triggers backfill). |
 | `GET /users/:collection` | DIDs ranked by record count. |
+| `GET /stats/:collection` | Unique user count and last record time. |
 | `GET /backfill/:collection/:did` | Backfill status: `unknown`, `in_progress`, or `complete`. |
+| `GET /cursor` | Current Jetstream cursor (raw, ISO date, seconds ago). |
 | `GET /health` | Health check. |
 
 ## Scripts
