@@ -1,7 +1,7 @@
 # Jetstream Cloudflare Worker
 
 easy to use cloudflare worker that 
-- listens for jetstream events on selected collections 
+- listens for jetstream events on selected collections (updates every minute on a cron job)
 - saves records from those collections in a D1 db
 - backfills users automatically
 - exposes a basic json api (see [api](#api))
