@@ -1,6 +1,12 @@
 # Jetstream Cloudflare Worker
 
-A Cloudflare Worker that mirrors AT Protocol records into a D1 database via the [Bluesky Jetstream](https://docs.bsky.app/blog/jetstream) firehose. Runs on a cron schedule, applies creates/updates/deletes, and automatically backfills a user's full history when they're first seen. Records are keyed by AT URI (`at://{did}/{collection}/{rkey}`).
+easy to use cloudflare worker that 
+- listens for jetstream events on selected collections 
+- saves records from those collections in a D1 db
+- backfills users automatically
+- exposes a basic json api (see [api](#api))
+
+warning: this pretty much completely vibe coded (but seems to work so far?).
 
 ## Quick start
 
@@ -8,7 +14,7 @@ A Cloudflare Worker that mirrors AT Protocol records into a D1 database via the 
 pnpm install
 pnpm setup              # creates the D1 database
 # paste the database_id into wrangler.toml
-pnpm deploy
+pnpm run deploy
 ```
 
 The schema is created automatically on the first cron run — no manual migration step needed.
@@ -41,7 +47,7 @@ pnpm setup                      # create the D1 database
 Copy the `database_id` from the output into `wrangler.toml` under `[[d1_databases]]`, set your desired collections in the `COLLECTIONS` var, then:
 
 ```sh
-pnpm deploy
+pnpm run deploy
 ```
 
 The worker will start ingesting on its cron schedule (every minute by default). Monitor logs with:
@@ -56,23 +62,25 @@ When a new DID appears in the Jetstream events, the worker fetches all their exi
 
 ## API
 
-All endpoints return JSON. Only tracked collections are served (others return 404). Paginated endpoints support `?limit=` (default 50, max 100) and `?cursor=`.
+All endpoints return JSON. Only tracked collections are served (others return 404).
 
-| Endpoint | Description |
-|---|---|
-| `GET /records/:collection` | Records sorted by time (newest first). Optional `?did=` filter (triggers backfill). |
-| `GET /users/:collection` | DIDs ranked by record count. |
-| `GET /stats/:collection` | Unique user count and last record time. |
-| `GET /backfill/:collection/:did` | Backfill status: `unknown`, `in_progress`, or `complete`. |
-| `GET /cursor` | Current Jetstream cursor (raw, ISO date, seconds ago). |
-| `GET /health` | Health check. |
+| Endpoint | Params | Description |
+|---|---|---|
+| `GET /records/:collection` | `?did=` `?limit=` `?cursor=` | Records sorted by time (newest first). `did` filter triggers backfill. |
+| `GET /users/:collection` | `?limit=` `?cursor=` | DIDs ranked by record count. |
+| `GET /stats/:collection` | | Unique user count and last record time. |
+| `GET /backfill/:collection/:did` | | Backfill status: `unknown`, `in_progress`, or `complete`. |
+| `GET /cursor` | | Current Jetstream cursor (`time_us`, ISO date, seconds ago). |
+| `GET /health` | | Health check. |
+
+`limit` defaults to 50. `cursor` is the `time_us` value from the previous page's response.
 
 ## Scripts
 
 | Command | Description |
 |---|---|
 | `pnpm dev` | Local dev server with cron support |
-| `pnpm deploy` | Deploy to Cloudflare |
+| `pnpm run deploy` | Deploy to Cloudflare |
 | `pnpm setup` | Create the D1 database |
 | `pnpm db:init` | Run schema on local + remote DB |
 | `pnpm db:reset` | Drop and recreate all local tables |
