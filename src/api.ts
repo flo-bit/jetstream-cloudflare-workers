@@ -145,10 +145,15 @@ async function handleGetStats(
 ): Promise<Response> {
   const collection = match[1];
 
-  const [userCount, lastRecord] = await db.batch([
+  const [userCount, recordCount, lastRecord] = await db.batch([
     db
       .prepare(
         "SELECT COUNT(DISTINCT did) as user_count FROM records WHERE collection = ?"
+      )
+      .bind(collection),
+    db
+      .prepare(
+        "SELECT COUNT(*) as total FROM records WHERE collection = ?"
       )
       .bind(collection),
     db
@@ -161,6 +166,7 @@ async function handleGetStats(
   return json({
     collection,
     unique_users: (userCount.results[0] as { user_count: number }).user_count,
+    total_records: (recordCount.results[0] as { total: number }).total,
     last_record_time_us:
       (lastRecord.results[0] as { last_time: number | null }).last_time,
   });

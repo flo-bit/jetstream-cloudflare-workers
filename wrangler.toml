@@ -3,7 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2025-01-29"
 
 [vars]
-COLLECTIONS = "app.blento.card,app.blento.page"
+COLLECTIONS = "app.blento.card,app.blento.page,pics.atmo.atlas.v0,dev.npmx.feed.like"
 
 [[d1_databases]]
 binding = "DB"
